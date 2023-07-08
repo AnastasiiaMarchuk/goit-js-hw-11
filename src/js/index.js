@@ -25,6 +25,7 @@ function onSubmit(event){
     page = 1;
     searchValue = searchInput.value;
     gallery.innerHTML = '';
+    totalImages = 0;
     getImages(searchValue).then(data => {
       if(data.hits.length === 0 || searchValue === ''){
         notifyFailure("Sorry, there are no images matching your search query. Please try again.");
