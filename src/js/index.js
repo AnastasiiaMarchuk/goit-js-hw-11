@@ -1,51 +1,95 @@
+import { searchForm, searchInput, gallery, loadMoreButton, loader } from './refs.js';
 import {getImages} from './pixabay.js'
-import { Notify } from 'notiflix/build/notiflix-notify-aio';
-import SimpleLightbox from 'simplelightbox';
+import {notifySuccess, notifyFailure} from './notify'
+import SimpleLightbox from "simplelightbox";
 import 'simplelightbox/dist/simple-lightbox.min.css';
 
-const searchForm = document.querySelector('.search-form');
-const searchInput = document.querySelector('input');
-const gallery = document.querySelector('.gallery')
-
-
-const BASE_URL = 'https://pixabay.com/api/';
-const API_KEY = '37740563-d8bfde705cf6e45a783b46982';
-const PARAMETERS = 'image_type=photo&orientation=horizontal&safesearch=true'
-let searchValue = " "
-
-searchForm.addEventListener('submit', onSubmit);
-
-
-
-function onSubmit(event){
-    event.preventDefault();
-    let searchValue = searchInput.value;
-    getImages(searchValue).then(data => createMarkup(data)).catch(err => console.log(err));
-}
-
+let searchValue = '';
+let page = 1;
+let totalImages = 0;
 let lightbox = new SimpleLightbox('.gallery a', {
-  captions: true,
-  captionsData: 'alt',
   captionDelay: 250,
 });
 
-function createMarkup(data){
+searchForm.addEventListener('submit', onSubmit);
+loadMoreButton.addEventListener('click', loadMoreImages);
+loadMoreButton.classList.add('is-hidden');
+loader.style.display = 'none';
 
-    const markup = data.hits.map((image) => {
-        return `<div class="photo-card">
-        <a class="gallery__link" href = ${image.largeImageURL}>
-      <img src="${image.previewURL}" alt="${image.tags}" loading="lazy" /></a>
-      <div class="info">
-        <p class="info-item">
-        <b>Likes ${image.likes}</b></p>
-        <p class="info-item"><b>Views ${image.views}</b></p>
-        <p class="info-item"><b>Comments ${image.comments}</b></p>
-        <p class="info-item"><b>Downloads ${image.downloads}</b></p>
-      </div>
-    </div>`
- }).join('')
 
-gallery.innerHTML = markup;
+//*********************function onSubmit*********************//
+function onSubmit(event){
+  
+  loader.style.display = 'block'
+    event.preventDefault();
+    page = 1;
+    searchValue = searchInput.value;
+    gallery.innerHTML = '';
+    getImages(searchValue).then(data => {
+      if(data.hits.length === 0 || searchValue === ''){
+        notifyFailure("Sorry, there are no images matching your search query. Please try again.");
+      }else{
+      notifySuccess(`Hooray! We found ${data.totalHits} images.`);
+      loadMoreButton.classList.remove('is-hidden');
+      createMarkup(data);
+      lightbox.refresh(); 
+      }
+    }).catch(err => console.log(err));
 }
 
 
+//*********************function createMarkup*********************//
+function createMarkup(data){
+    const markup = data.hits.map((image) => {
+        return `<div class="photo-card">
+        <a class="gallery__link" href="${image.largeImageURL}">
+        <img src="${image.webformatURL}" alt="${image.tags}" loading="lazy" width="280" height="210" /></a>
+        <div class="info">
+        <p class="info-item"><b>Likes</b> ${image.likes}</p>
+        <p class="info-item"><b>Views</b> ${image.views}</p>
+        <p class="info-item"><b>Comments</b> ${image.comments}</p>
+        <p class="info-item"><b>Downloads</b> ${image.downloads}</p>
+      </div>
+      </div>`;
+    }).join('');
+
+    gallery.insertAdjacentHTML('beforeend', markup);
+    lightbox.refresh();
+    loader.style.display = 'none';
+    totalImages += data.hits.length;
+
+    if (totalImages >= data.totalHits) {
+    loadMoreButton.classList.add('is-hidden');
+    }
+}
+
+//*********************function loadMoreImages*********************//
+function loadMoreImages() {
+  page += 1;
+  getImages(searchValue, page)
+    .then((data) => {
+      createMarkup(data);
+      totalImages += data.hits.length;
+      if (totalImages >= data.totalHits) {
+        loadMoreButton.classList.add('is-hidden');
+        notifyFailure("We're sorry, but you've reached the end of search results.");
+      }
+      ScrollGallery(); 
+      lightbox.refresh();
+    })
+    .catch((error) =>
+      notifyFailure("We're sorry, but an error occurred while loading more images.")
+    );
+}
+
+
+//*********************function  ScrollGallery*********************//
+
+function ScrollGallery() {
+  const { height } = gallery.firstElementChild.getBoundingClientRect();
+
+  window.scrollBy({
+    top: height * 2,
+    behavior: 'smooth',
+  });
+}
